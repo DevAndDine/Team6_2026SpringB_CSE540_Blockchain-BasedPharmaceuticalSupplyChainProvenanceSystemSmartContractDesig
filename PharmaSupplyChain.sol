@@ -2,38 +2,12 @@
 pragma solidity ^0.8.20;
 
 /**
-===================================================================
-Blockchain-Based Pharmaceutical Supply Chain Provenance System 
-Project for Course CSE 540 — Engineering Blockchain Applications
-===================================================================
  * @title PharmaSupplyChain
- * @author All Team Members
- *
- * @notice
- * This smart contract implements a blockchain-based pharmaceutical supply chain
- * provenance system. It enables multiple stakeholders (Manufacturer, Distributor,
- * Pharmacy, Auditor) to track the lifecycle of drug batches in a decentralized,
- * transparent, and tamper-resistant manner.
- *
- * @dev
- * DESIGN PRINCIPLES:
- * - Blockchain stores critical state (ownership, status, provenance logs)
- * - Off-chain JSON is stored as serialized strings for detailed metadata
- * - Role-based access control ensures only authorized actions
- * - Separation of concerns:
- *      - State (Batch)
- *      - History (ProcessRecord)
- * - Event-driven architecture for frontend integration
+ * @notice A blockchain-based pharmaceutical supply chain provenance system
+ * for tracking drug batches from manufacturer to pharmacy with auditor verification.
  */
 contract PharmaSupplyChain {
 
-    /* =============================================================
-                        ENUMS
-    ============================================================= */
-
-    /**
-     * @dev Defines roles for participants in supply chain
-     */
     enum Role {
         None,
         Manufacturer,
@@ -42,9 +16,6 @@ contract PharmaSupplyChain {
         Auditor
     }
 
-    /**
-     * @dev Defines lifecycle stages of a batch
-     */
     enum BatchStatus {
         Created,
         InTransit,
@@ -52,218 +23,181 @@ contract PharmaSupplyChain {
         Verified
     }
 
-    /* =============================================================
-                        STRUCTS
-    ============================================================= */
-
-    /**
-     * @dev Represents a pharmaceutical product batch
-     *
-     * @param id Unique identifier of the batch
-     * @param owner Current owner of the batch
-     * @param metadata Basic description (e.g., drug name)
-     * @param status Current lifecycle stage
-     * @param exists Flag to check existence
-     */
     struct Batch {
         uint256 id;
-        address owner;
-        string metadata;
+        string drugName;
+        string lotNumber;
+        uint256 manufactureDate;
+        uint256 expiryDate;
+        address currentOwner;
         BatchStatus status;
         bool exists;
+        bool verified;
     }
 
-    /**
-     * @dev Represents a provenance record (history log)
-     *
-     * @param step Human-readable action label
-     * @param data JSON string storing detailed off-chain info
-     * @param timestamp Time of action
-     * @param actor Address performing the action
-     *
-     * NOTE:
-     * This struct captures immutable history and should NOT be modified.
-     */
     struct ProcessRecord {
         string step;
-        string data;
+        string details;
         uint256 timestamp;
         address actor;
     }
 
-    /* =============================================================
-                        STATE VARIABLES
-    ============================================================= */
-
-    /// @dev System administrator (deployer)
     address public admin;
 
-    /// @dev Mapping from batch ID to Batch
+    mapping(address => Role) public roles;
     mapping(uint256 => Batch) private batches;
-
-    /// @dev Mapping from batch ID to its full provenance history
     mapping(uint256 => ProcessRecord[]) private histories;
 
-    /// @dev Mapping from address to role
-    mapping(address => Role) public roles;
-
-    /* =============================================================
-                            EVENTS
-    ============================================================= */
-
-    /// @dev Emitted when role is assigned
     event RoleAssigned(address indexed user, Role role);
-
-    /// @dev Emitted when a batch is created
-    event BatchCreated(uint256 indexed batchId, address indexed owner);
-
-    /// @dev Emitted when ownership changes
-    event OwnershipTransferred(uint256 indexed batchId, address indexed from, address indexed to);
-
-    /// @dev Emitted when process step is logged
+    event BatchCreated(uint256 indexed batchId, address indexed manufacturer);
+    event BatchTransferred(uint256 indexed batchId, address indexed from, address indexed to);
+    event BatchDelivered(uint256 indexed batchId, address indexed pharmacy);
+    event BatchVerified(uint256 indexed batchId, address indexed auditor);
     event ProcessLogged(uint256 indexed batchId, string step, address indexed actor);
 
-    /// @dev Emitted when batch status changes
-    event StatusUpdated(uint256 indexed batchId, BatchStatus status);
-
-    /* =============================================================
-                        MODIFIERS
-    ============================================================= */
-
-    /// @dev Restricts access to admin only
     modifier onlyAdmin() {
-        require(msg.sender == admin, "Not admin");
+        require(msg.sender == admin, "Only admin can perform this action");
         _;
     }
 
-    /// @dev Restricts access to specific role
     modifier onlyRole(Role _role) {
         require(roles[msg.sender] == _role, "Unauthorized role");
         _;
     }
 
-    /// @dev Ensures batch exists
     modifier batchExists(uint256 _batchId) {
         require(batches[_batchId].exists, "Batch does not exist");
         _;
     }
 
-    /// @dev Ensures caller is batch owner
-    modifier onlyOwner(uint256 _batchId) {
-        require(batches[_batchId].owner == msg.sender, "Not batch owner");
+    modifier onlyBatchOwner(uint256 _batchId) {
+        require(batches[_batchId].currentOwner == msg.sender, "Not current batch owner");
         _;
     }
 
-    /* =============================================================
-                        CONSTRUCTOR
-    ============================================================= */
-
-    /**
-     * @dev Initializes contract
-     * - Assigns deployer as admin and manufacturer
-     */
     constructor() {
         admin = msg.sender;
         roles[msg.sender] = Role.Manufacturer;
+        emit RoleAssigned(msg.sender, Role.Manufacturer);
     }
 
-    /* =============================================================
-                        ROLE MANAGEMENT
-    ============================================================= */
-
-    /**
-     * @notice Assign role to a user
-     * @dev Only admin can assign roles
-     */
-    function assignRole(address _user, Role _role)
-        public
-        onlyAdmin
-    {
+    function assignRole(address _user, Role _role) external onlyAdmin {
+        require(_user != address(0), "Invalid address");
+        require(_role != Role.None, "Invalid role");
         roles[_user] = _role;
         emit RoleAssigned(_user, _role);
     }
 
-    /* =============================================================
-                        CORE FUNCTIONS
-    ============================================================= */
-
-    /**
-     * @notice Create a new batch
-     * @dev Only Manufacturer can create batches
-     */
-    function createBatch(uint256 _batchId, string memory _metadata)
-        public
-        onlyRole(Role.Manufacturer)
-    {
-        require(!batches[_batchId].exists, "Batch exists");
+    function createBatch(
+        uint256 _batchId,
+        string memory _drugName,
+        string memory _lotNumber,
+        uint256 _manufactureDate,
+        uint256 _expiryDate
+    ) external onlyRole(Role.Manufacturer) {
+        require(!batches[_batchId].exists, "Batch already exists");
+        require(_manufactureDate < _expiryDate, "Invalid dates");
 
         batches[_batchId] = Batch({
             id: _batchId,
-            owner: msg.sender,
-            metadata: _metadata,
+            drugName: _drugName,
+            lotNumber: _lotNumber,
+            manufactureDate: _manufactureDate,
+            expiryDate: _expiryDate,
+            currentOwner: msg.sender,
             status: BatchStatus.Created,
-            exists: true
+            exists: true,
+            verified: false
         });
 
+        histories[_batchId].push(ProcessRecord({
+            step: "Batch Created",
+            details: "Manufacturer created a new drug batch",
+            timestamp: block.timestamp,
+            actor: msg.sender
+        }));
+
         emit BatchCreated(_batchId, msg.sender);
+        emit ProcessLogged(_batchId, "Batch Created", msg.sender);
     }
 
-    /**
-     * @notice Transfer batch ownership
-     * @dev Ownership change reflects supply chain movement
-     */
-    function transferBatch(uint256 _batchId, address _to)
-        public
+    function transferToDistributor(uint256 _batchId, address _distributor)
+        external
         batchExists(_batchId)
-        onlyOwner(_batchId)
+        onlyBatchOwner(_batchId)
+        onlyRole(Role.Manufacturer)
     {
-        require(roles[_to] != Role.None, "Recipient has no role");
+        require(roles[_distributor] == Role.Distributor, "Recipient must be a distributor");
+        require(batches[_batchId].status == BatchStatus.Created, "Batch must be in Created state");
 
-        address previousOwner = batches[_batchId].owner;
-        batches[_batchId].owner = _to;
+        batches[_batchId].currentOwner = _distributor;
+        batches[_batchId].status = BatchStatus.InTransit;
 
-        emit OwnershipTransferred(_batchId, previousOwner, _to);
+        histories[_batchId].push(ProcessRecord({
+            step: "Transferred to Distributor",
+            details: "Manufacturer transferred batch to distributor",
+            timestamp: block.timestamp,
+            actor: msg.sender
+        }));
+
+        emit BatchTransferred(_batchId, msg.sender, _distributor);
+        emit ProcessLogged(_batchId, "Transferred to Distributor", msg.sender);
     }
 
-    /**
-     * @notice Update batch lifecycle status
-     * @dev Should reflect real supply chain stages
-     */
-    function updateStatus(uint256 _batchId, BatchStatus _status)
-        public
+    function transferToPharmacy(uint256 _batchId, address _pharmacy)
+        external
         batchExists(_batchId)
-        onlyOwner(_batchId)
+        onlyBatchOwner(_batchId)
+        onlyRole(Role.Distributor)
     {
-        batches[_batchId].status = _status;
-        emit StatusUpdated(_batchId, _status);
+        require(roles[_pharmacy] == Role.Pharmacy, "Recipient must be a pharmacy");
+        require(batches[_batchId].status == BatchStatus.InTransit, "Batch must be in transit");
+
+        batches[_batchId].currentOwner = _pharmacy;
+        batches[_batchId].status = BatchStatus.Delivered;
+
+        histories[_batchId].push(ProcessRecord({
+            step: "Delivered to Pharmacy",
+            details: "Distributor delivered batch to pharmacy",
+            timestamp: block.timestamp,
+            actor: msg.sender
+        }));
+
+        emit BatchTransferred(_batchId, msg.sender, _pharmacy);
+        emit BatchDelivered(_batchId, _pharmacy);
+        emit ProcessLogged(_batchId, "Delivered to Pharmacy", msg.sender);
     }
 
-    /**
-     * @notice Log a process step for provenance tracking
-     *
-     * @dev
-     * This function records detailed history of actions performed on a batch.
-     * It complements the Batch struct by storing time-series data.
-     *
-     * Example:
-     * - step: "Shipped"
-     * - data: JSON string with logistics details
-     *
-     * IMPORTANT:
-     * This does NOT modify batch state; it only appends history.
-     */
-    function logProcessStep(
+    function verifyBatch(uint256 _batchId)
+        external
+        batchExists(_batchId)
+        onlyRole(Role.Auditor)
+    {
+        require(batches[_batchId].status == BatchStatus.Delivered, "Batch must be delivered first");
+        require(!batches[_batchId].verified, "Batch already verified");
+
+        batches[_batchId].status = BatchStatus.Verified;
+        batches[_batchId].verified = true;
+
+        histories[_batchId].push(ProcessRecord({
+            step: "Batch Verified",
+            details: "Auditor verified the delivered batch",
+            timestamp: block.timestamp,
+            actor: msg.sender
+        }));
+
+        emit BatchVerified(_batchId, msg.sender);
+        emit ProcessLogged(_batchId, "Batch Verified", msg.sender);
+    }
+
+    function logCustomProcessStep(
         uint256 _batchId,
         string memory _step,
-        string memory _data
-    )
-        public
-        batchExists(_batchId)
-        onlyOwner(_batchId)
-    {
+        string memory _details
+    ) external batchExists(_batchId) onlyBatchOwner(_batchId) {
         histories[_batchId].push(ProcessRecord({
             step: _step,
-            data: _data,
+            details: _details,
             timestamp: block.timestamp,
             actor: msg.sender
         }));
@@ -271,16 +205,8 @@ contract PharmaSupplyChain {
         emit ProcessLogged(_batchId, _step, msg.sender);
     }
 
-    /* =============================================================
-                        VIEW FUNCTIONS
-    ============================================================= */
-
-    /**
-     * @notice Get current batch state
-     * @dev Returns latest snapshot (NOT history)
-     */
     function getBatch(uint256 _batchId)
-        public
+        external
         view
         batchExists(_batchId)
         returns (Batch memory)
@@ -288,12 +214,8 @@ contract PharmaSupplyChain {
         return batches[_batchId];
     }
 
-    /**
-     * @notice Get full provenance history
-     * @dev Returns chronological list of all actions
-     */
     function getBatchHistory(uint256 _batchId)
-        public
+        external
         view
         batchExists(_batchId)
         returns (ProcessRecord[] memory)
