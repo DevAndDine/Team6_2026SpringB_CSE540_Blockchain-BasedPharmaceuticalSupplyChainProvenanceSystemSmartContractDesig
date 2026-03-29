@@ -60,18 +60,24 @@ Install the following:
 - npm
 - MetaMask browser extension
 
-## Installation
-Clone the repository:
-git clone <our-repo-url>
+## Installation  
+Clone the repository:  
+```bash
+git clone <our-repo-url>  
 cd <your-project-folder>
+```
 
-Install dependencies:
+Install dependencies:  
+```bash
 npm install
-or
-npm init -y
-npm install --save-dev hardhat
-npm install --save-dev @nomicfoundation/hardhat-toolbox
-npm install ethers
+```
+or  
+```bash
+npm init -y  
+npm install --save-dev hardhat  
+npm install --save-dev @nomicfoundation/hardhat-toolbox  
+npm install ethers  
+```
 
 ## Usage
 ### 1. Start Local Blockchain
