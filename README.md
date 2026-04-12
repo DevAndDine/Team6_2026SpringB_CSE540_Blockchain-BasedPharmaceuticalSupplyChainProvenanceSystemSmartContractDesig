@@ -56,7 +56,7 @@ The implementation focuses on demonstrating core ideas such as immutability, tra
 
 ## Prerequisites
 Install the following:
-- Node.js (v16 or higher)
+- Node.js (v20.17+ or v22 recommended)
 - npm
 - MetaMask browser extension
 

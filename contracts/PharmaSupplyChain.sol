@@ -118,10 +118,10 @@ contract PharmaSupplyChain {
     event BatchCreated(uint256 indexed batchId, address indexed owner);
 
     /// @dev Emitted when ownership changes
-    event OwnershipTransferred(uint256 indexed batchId, address indexed from, address indexed to);
+    event OwnershipTransferred(uint256 indexed batchId, address from, address to);
 
     /// @dev Emitted when process step is logged
-    event ProcessLogged(uint256 indexed batchId, string step, address indexed actor);
+    event ProcessLogged(uint256 indexed batchId, string step, address actor);
 
     /// @dev Emitted when batch status changes
     event StatusUpdated(uint256 indexed batchId, BatchStatus status);
@@ -143,14 +143,15 @@ contract PharmaSupplyChain {
     }
 
     /// @dev Ensures batch exists
-    modifier batchExists(uint256 _batchId) {
-        require(batches[_batchId].exists, "Batch does not exist");
+    modifier batchExists(uint256 _id) {
+        require(batches[_id].exists, "Batch does not exist");
         _;
     }
 
+
     /// @dev Ensures caller is batch owner
-    modifier onlyOwner(uint256 _batchId) {
-        require(batches[_batchId].owner == msg.sender, "Not batch owner");
+    modifier onlyOwner(uint256 _id) {
+        require(batches[_id].owner == msg.sender, "Not owner");
         _;
     }
 
@@ -191,51 +192,74 @@ contract PharmaSupplyChain {
      * @notice Create a new batch
      * @dev Only Manufacturer can create batches
      */
-    function createBatch(uint256 _batchId, string memory _metadata)
+    function createBatch(uint256 _id, string memory _metadata)
         public
         onlyRole(Role.Manufacturer)
     {
-        require(!batches[_batchId].exists, "Batch exists");
+        require(!batches[_id].exists, "Batch exists");
 
-        batches[_batchId] = Batch({
-            id: _batchId,
+        batches[_id] = Batch({
+            id: _id,
             owner: msg.sender,
             metadata: _metadata,
             status: BatchStatus.Created,
             exists: true
         });
 
-        emit BatchCreated(_batchId, msg.sender);
+        // add initial history
+        histories[_id].push(ProcessRecord({
+            step: "Created",
+            data: _metadata,
+            timestamp: block.timestamp,
+            actor: msg.sender
+        }));
+
+        emit BatchCreated(_id, msg.sender);
     }
 
     /**
      * @notice Transfer batch ownership
      * @dev Ownership change reflects supply chain movement
      */
-    function transferBatch(uint256 _batchId, address _to)
+    function transferBatch(uint256 _id, address _to)
         public
-        batchExists(_batchId)
-        onlyOwner(_batchId)
+        batchExists(_id)
+        onlyOwner(_id)
     {
-        require(roles[_to] != Role.None, "Recipient has no role");
+        require(roles[_to] != Role.None, "Invalid receiver");
 
-        address previousOwner = batches[_batchId].owner;
-        batches[_batchId].owner = _to;
+        address prev = batches[_id].owner;
+        batches[_id].owner = _to;
 
-        emit OwnershipTransferred(_batchId, previousOwner, _to);
+        // update status automatically
+        batches[_id].status = BatchStatus.InTransit;
+
+        histories[_id].push(ProcessRecord({
+            step: "Transferred",
+            data: "Ownership transferred",
+            timestamp: block.timestamp,
+            actor: msg.sender
+        }));
+
+        emit OwnershipTransferred(_id, prev, _to);
     }
 
     /**
      * @notice Update batch lifecycle status
      * @dev Should reflect real supply chain stages
      */
-    function updateStatus(uint256 _batchId, BatchStatus _status)
+    function updateStatus(uint256 _id, BatchStatus _status)
         public
-        batchExists(_batchId)
-        onlyOwner(_batchId)
+        batchExists(_id)
+        onlyOwner(_id)
     {
-        batches[_batchId].status = _status;
-        emit StatusUpdated(_batchId, _status);
+        require(
+            uint(_status) > uint(batches[_id].status),
+            "Invalid status progression"
+        );
+
+        batches[_id].status = _status;
+        emit StatusUpdated(_id, _status);
     }
 
     /**
@@ -253,22 +277,22 @@ contract PharmaSupplyChain {
      * This does NOT modify batch state; it only appends history.
      */
     function logProcessStep(
-        uint256 _batchId,
+        uint256 _id,
         string memory _step,
         string memory _data
     )
         public
-        batchExists(_batchId)
-        onlyOwner(_batchId)
+        batchExists(_id)
+        onlyOwner(_id)
     {
-        histories[_batchId].push(ProcessRecord({
+        histories[_id].push(ProcessRecord({
             step: _step,
             data: _data,
             timestamp: block.timestamp,
             actor: msg.sender
         }));
 
-        emit ProcessLogged(_batchId, _step, msg.sender);
+        emit ProcessLogged(_id, _step, msg.sender);
     }
 
     /* =============================================================
@@ -279,25 +303,25 @@ contract PharmaSupplyChain {
      * @notice Get current batch state
      * @dev Returns latest snapshot (NOT history)
      */
-    function getBatch(uint256 _batchId)
+    function getBatch(uint256 _id)
         public
         view
-        batchExists(_batchId)
+        batchExists(_id)
         returns (Batch memory)
     {
-        return batches[_batchId];
+        return batches[_id];
     }
 
     /**
      * @notice Get full provenance history
      * @dev Returns chronological list of all actions
      */
-    function getBatchHistory(uint256 _batchId)
+    function getBatchHistory(uint256 _id)
         public
         view
-        batchExists(_batchId)
+        batchExists(_id)
         returns (ProcessRecord[] memory)
     {
-        return histories[_batchId];
+        return histories[_id];
     }
 }
