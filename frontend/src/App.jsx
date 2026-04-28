@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { ethers } from "ethers";
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from "./contract";
+import contractAddress from "./contract-address.json";
+import contractABI from "./contract-abi.json";
 import "./App.css";
 
 const ROLE = {
@@ -9,6 +11,12 @@ const ROLE = {
   Pharmacy: 3,
   Auditor: 4,
 };
+
+const pharmaContract = new ethers.Contract(
+  contractAddress.address,
+  contractABI,
+  signer
+);
 
 const STATUS = ["Created", "InTransit", "Delivered", "Verified"];
 
