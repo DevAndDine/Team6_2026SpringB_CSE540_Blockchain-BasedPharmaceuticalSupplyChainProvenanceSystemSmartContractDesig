@@ -51,14 +51,13 @@ The implementation focuses on demonstrating core ideas such as immutability, tra
 - **Framework:** Hardhat
 - **Library:** Ethers.js
 - **Blockchain:** Ethereum (local Hardhat network)
-- **Wallet:** MetaMask
+- **Wallet:** Local Hardhat demo accounts
 - **Storage:** JSON (off-chain simulation)
 
 ## Prerequisites
 Install the following:
 - Node.js (v20.17+ or v22 recommended)
 - npm
-- MetaMask browser extension
 
 ## Installation  
 Clone the repository:  
@@ -96,21 +95,43 @@ npx hardhat compile
 npx hardhat run scripts/deploy.js --network localhost
 ```
 
-### 4. Start Hardhat console
+### 4. Run tests
+The test suite covers the complete stakeholder workflow and representative failure cases:
+```bash
+npm test
+```
+
+### 5. Run the React frontend
+Start the web application in another terminal:
+```bash
+npm run dev
+```
+
+Open the Vite URL shown in the terminal. The frontend uses local Hardhat demo accounts, so the presentation workflow can connect and run without a browser wallet extension.
+
+The frontend supports:
+- A start page explaining the running project, blockchain purpose, stack, and created roles
+- A role selection page showing what Manufacturer, Distributor, Pharmacy, and Auditor can do
+- A workflow page that runs the complete stakeholder flow and displays transaction logs
+- Contract deployment through local Hardhat accounts
+- Batch and provenance history results after the workflow completes
+
+### 6. Run the workflow demo script
+```bash
+npm run demo
+```
+
+### 7. Start Hardhat console
 ```bash
 npx hardhat console --network localhost
 ```
 
-### 5. Interact with the Contract
-- Open MetaMask
-- Add a new network: Network Name and RPC URL
-- Import a Hardhat account by copying private key from Hardhat terminal, then import into MEtaMask
-
-### 6. Interact with the Contract
+### 8. Interact with the Contract
 You can interact with the deployed contract using:
+- React frontend
 - Hardhat console
-- Test scripts
-- Optional frontend (if implemented):
+- Demo scripts
+- Hardhat tests
 
 ## Contributors
 This project was developed as a team effort by:
