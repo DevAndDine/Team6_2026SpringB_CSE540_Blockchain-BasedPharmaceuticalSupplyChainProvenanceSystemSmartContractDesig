@@ -10,15 +10,7 @@ const path = require("path");
 const app = express();
 
 app.use(cors());
-app.use(express.json())i;
-
-const distributorWallet = new ethers.Wallet(process.env.DISTRIBUTOR_PRIVATE_KEY, provider);
-const pharmacyWallet = new ethers.Wallet(process.env.PHARMACY_PRIVATE_KEY, provider);
-const auditorWallet = new ethers.Wallet(process.env.AUDITOR_PRIVATE_KEY, provider);
-
-const distributorContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, distributorWallet);
-const pharmacyContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, pharmacyWallet);
-const auditorContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, auditorWallet);
+app.use(express.json());
 
 const PORT = process.env.PORT || 5001;
 const RPC_URL = process.env.RPC_URL || "http://127.0.0.1:8545";
@@ -52,6 +44,14 @@ const CONTRACT_ABI = JSON.parse(fs.readFileSync(abiPath, "utf8"));
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, wallet);
+
+const distributorWallet = new ethers.Wallet(process.env.DISTRIBUTOR_PRIVATE_KEY, provider);
+const pharmacyWallet = new ethers.Wallet(process.env.PHARMACY_PRIVATE_KEY, provider);
+const auditorWallet = new ethers.Wallet(process.env.AUDITOR_PRIVATE_KEY, provider);
+
+const distributorContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, distributorWallet);
+const pharmacyContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, pharmacyWallet);
+const auditorContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, auditorWallet);
 
 const STATUS = ["Created", "InTransit", "Delivered", "Verified"];
 
@@ -300,6 +300,74 @@ app.post("/api/log-process-step", async (req, res) => {
       history: formatHistory(history),
       txHash: receipt.hash,
       gasUsed: receipt.gasUsed.toString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: getErrorMessage(error),
+    });
+  }
+});
+
+app.post("/api/transfer-batch-as-distributor", async (req, res) => {
+  try {
+    const { id, newOwner } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ success: false, error: "Missing batch id" });
+    }
+
+    if (!ethers.isAddress(newOwner)) {
+      return res.status(400).json({ success: false, error: "Invalid new owner address" });
+    }
+
+    const tx = await distributorContract.transferBatch(Number(id), newOwner);
+    const receipt = await tx.wait();
+
+    const batch = await contract.getBatch(Number(id));
+
+    res.json({
+      success: true,
+      batch: formatBatch(batch),
+      txHash: receipt.hash,
+      gasUsed: receipt.gasUsed.toString(),
+      signedBy: "Distributor",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: getErrorMessage(error),
+    });
+  }
+});
+
+app.post("/api/log-process-step-as-pharmacy", async (req, res) => {
+  try {
+    const { id, step, data } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ success: false, error: "Missing batch id" });
+    }
+
+    if (!step) {
+      return res.status(400).json({ success: false, error: "Missing process step" });
+    }
+
+    const tx = await pharmacyContract.logProcessStep(
+      Number(id),
+      step,
+      data || "{}"
+    );
+
+    const receipt = await tx.wait();
+    const history = await contract.getBatchHistory(Number(id));
+
+    res.json({
+      success: true,
+      history: formatHistory(history),
+      txHash: receipt.hash,
+      gasUsed: receipt.gasUsed.toString(),
+      signedBy: "Pharmacy",
     });
   } catch (error) {
     res.status(500).json({
