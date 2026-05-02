@@ -47,26 +47,21 @@ The implementation focuses on demonstrating core ideas such as immutability, tra
 8. Auditor can retrieve batch history
 
 ## Technology Stack
-- **Language:** Solidity, JavaScript
-- **Framework:** Hardhat
-- **Library:** Ethers.js
-- **Blockchain:** Ethereum (local Hardhat network)
-- **Wallet:** MetaMask
-- **Storage:** JSON (off-chain simulation)
+Solidity – Smart contract development
+Ethereum (Hardhat Local Network) – Blockchain execution environment
+Hardhat – Development, testing, and deployment framework
+Ethers.js – Interaction with smart contracts
+Node.js – Runtime environment
+Express.js – REST API server
+dotenv – Environment variable management
+Axios – HTTP requests (IPFS / external APIs)
 
 ## Prerequisites
 Install the following:
 - Node.js (v20.17+ or v22 recommended)
 - npm
-- MetaMask browser extension
-
+- 
 ## Installation  
-Clone the repository:  
-```bash
-git clone <our-repo-url>  
-cd <your-project-folder>
-```
-
 Install dependencies:  
 ```bash
 npm install
@@ -86,27 +81,21 @@ Run a local Ethereum network using Hardhat:
 npx hardhat node
 ```
 
-### 2. Compile Smart Contract
+### 2. Deploy the contract
 ```bash
-npx hardhat compile
+npx hardhat run scripts/deploy_backend.js --network localhost
 ```
 
-### 3. Deploy the contract
+### 3. Start backend server
 ```bash
-npx hardhat run scripts/deploy.js --network localhost
+node server.js
 ```
 
-### 4. Start Hardhat console
-```bash
-npx hardhat console --network localhost
-```
-
-### 5. Interact with the Contract
-- Open MetaMask
+### 4. Interact with the Contract
 - Add a new network: Network Name and RPC URL
 - Import a Hardhat account by copying private key from Hardhat terminal, then import into MEtaMask
 
-### 6. Interact with the Contract
+### 5. Interact with the Contract
 You can interact with the deployed contract using:
 - Hardhat console
 - Test scripts
